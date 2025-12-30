@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Global Tecnologia | Sistema Completo</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/emailjs-com@3/dist/email.min.js"></script>
+
+<style>
+body{margin:0;font-family:Arial;background:#f4f6f9}
+.login,.app{display:none}
+.login{height:100vh;display:flex;align-items:center;justify-content:center}
+.login-box{background:#fff;padding:25px;border-radius:10px;width:320px}
+input,textarea,button{width:100%;padding:8px;margin:6px 0}
+button{background:#0b5ed7;color:#fff;border:none;border-radius:6px;cursor:pointer}
+.container{padding:20px}
+.card{background:#fff;padding:15px;border-radius:10px;margin-bottom:15px}
+table{width:100%;border-collapse:collapse;font-size:12px}
+td,th{border:1px solid #ccc;padding:6px;text-align:left}
+th{background:#e9f0ff}
+.actions button{width:auto;padding:5px 8px;font-size:11px;margin-right:4px}
+.footer{font-size:10px;text-align:center;color:#555}
+</style>
+</head>
+<body>
+
+<div class="login" id="login">
+  <div class="login-box">
+    <h3>Login</h3>
+    <input id="email" placeholder="Email">
+    <input id="senha" type="password" placeholder="Senha">
+    <button onclick="entrar()">Entrar</button>
+    <p id="erro" style="color:red"></p>
+  </div>
+</div>
+
+<div class="app" id="app">
+<div class="container">
+
+<div class="card">
+<h3>Novo Comprovante</h3>
+Cliente <input id="cliente">
+Email do Cliente <input id="emailCliente">
+Descrição <textarea id="descricao"></textarea>
+Valor <input id="valor" type="number">
+<button onclick="salvar()">Salvar</button>
+</div>
+
+<div class="card">
+<h3>Histórico de Comprovantes</h3>
+<table>
+<thead>
+<tr>
+<th>Nº</th><th>Cliente</th><th>Valor</th><th>Data</th><th>Ações</th>
+</tr>
+</thead>
+<tbody id="lista"></tbody>
+</table>
+</div>
+
+<div class="footer">Comprovante não fiscal</div>
+
+</div>
+</div>
+
+<script>
+emailjs.init("72paZhNG4VUHbSn4e");
+
+const firebaseConfig = {
+ apiKey: "AIzaSyApCbQJCUQSwP0g6vSBqwrIMSK7n-w9ILc",
+ authDomain: "global-tecnologia-kanban.firebaseapp.com",
+ projectId: "global-tecnologia-kanban",
+ storageBucket: "global-tecnologia-kanban.firebasestorage.app",
+ messagingSenderId: "526527534352",
+ appId: "1:526527534352:web:22b874f8029b3cd4c48195"
+};
+firebase.initializeApp(firebaseConfig);
+const auth=firebase.auth(), db=firebase.firestore();
+let uid=null;
+
+auth.onAuthStateChanged(u=>{
+ if(u){uid=u.uid;login.style.display="none";app.style.display="block";carregar();}
+ else{login.style.display="flex";app.style.display="none";}
+});
+
+function entrar(){
+ auth.signInWithEmailAndPassword(email.value,senha.value)
+ .catch(()=>erro.innerText="Erro no login");
+}
+
+async function salvar(){
+ const ref=db.collection("usuarios").doc(uid);
+ const counter=await ref.get();
+ let num=1;
+ if(counter.exists && counter.data().contador){num=counter.data().contador+1}
+ await ref.set({contador:num},{merge:true});
+
+ const nota={
+  numero:num,
+  cliente:cliente.value,
+  email:emailCliente.value,
+  descricao:descricao.value,
+  valor:Number(valor.value),
+  data:new Date().toLocaleDateString()
+ };
+ await ref.collection("notas").add(nota);
+
+ cliente.value="";emailCliente.value="";descricao.value="";valor.value="";
+ carregar();
+}
+
+async function carregar(){
+ lista.innerHTML="";
+ const snap=await db.collection("usuarios").doc(uid).collection("notas").orderBy("numero","desc").get();
+ snap.forEach(doc=>{
+  const n=doc.data();
+  lista.innerHTML+=`
+  <tr>
+    <td>${n.numero}</td>
+    <td>${n.cliente}</td>
+    <td>R$ ${n.valor.toFixed(2)}</td>
+    <td>${n.data}</td>
+    <td class="actions">
+      <button onclick='enviarEmail(${JSON.stringify(n)})'>E-mail</button>
+    </td>
+  </tr>`;
+ });
+}
+
+function enviarEmail(n){
+ if(!n.email){alert("Cliente sem e-mail");return;}
+
+ emailjs.send("service_8mxs68h","template_brwmq7a",{
+  to_email:n.email,
+  cliente:n.cliente,
+  valor:n.valor.toFixed(2),
+  numero:n.numero,
+  data:n.data
+ }).then(()=>{
+   alert("E-mail enviado com sucesso");
+ }).catch(()=>{
+   alert("Erro ao enviar e-mail");
+ });
+}
+</script>
+</body>
+</html>
